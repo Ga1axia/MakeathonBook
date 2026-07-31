@@ -13,7 +13,7 @@ export type CanvasTextureOptions = {
 const DEFAULTS = {
   width: BOOK.textureWidth,
   height: BOOK.textureHeight,
-  paddingX: 56,
+  paddingX: 36,
   fontSize: BOOK.fontSize,
   fontFamily: BOOK.fontFamily,
   textColor: '#1a1917',

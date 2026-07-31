@@ -19,7 +19,7 @@ export type LineLayout = {
  * Shared line wrapping + vertical placement used by ribbons and drive mode.
  */
 export function buildLineLayout(text: string): LineLayout {
-  const width = BOOK.pageWidth * 0.86
+  const width = BOOK.pageWidth * 0.94
   const ribbonHeight = BOOK.ribbonHeight
   const gap = BOOK.lineGap
   const rowPitch = ribbonHeight + gap
@@ -32,7 +32,7 @@ export function buildLineLayout(text: string): LineLayout {
     lines = CanvasTextureRenderer.wrapLines(
       text,
       (value) => MEASURE_CTX.measureText(value).width,
-      BOOK.textureWidth - 112,
+      BOOK.textureWidth - 72,
     )
   } else {
     lines = text.replace(/\r\n/g, '\n').split('\n')

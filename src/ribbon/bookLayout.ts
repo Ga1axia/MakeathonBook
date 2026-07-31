@@ -1,7 +1,7 @@
 /** Shared book page proportions — portrait left page, trade-paperback. */
 export const BOOK = {
   /** Page width in world units */
-  pageWidth: 3.55,
+  pageWidth: 4.15,
   /** Page height in world units (taller standard book) */
   pageHeight: 5.5,
   /** Physical-ish thickness of the page stack */
@@ -11,15 +11,15 @@ export const BOOK = {
   /** Vertical gap between line ribbons — wide enough for the drive-mode car */
   lineGap: 0.22,
   /** Horizontal lift peak radius */
-  ellipseX: 1,
+  ellipseX: 1.15,
   /** Vertical hover ellipse — tight to one line */
   ellipseY: 0.09,
   /** Lift height */
   maxLift: 0.62,
   neighborLift: 0.28,
   /** Canvas strip resolution (aspect matches ribbonHeight / pageWidth) */
-  textureWidth: 1600,
-  /** 1600 * (0.118 / 3.55) ≈ 53 */
+  textureWidth: 1800,
+  /** ~1800 * (0.118 / 4.15) ≈ 51 */
   textureHeight: 56,
   /** Glyph size on the strip canvas — a bit larger than standard book body */
   fontSize: 44,
@@ -41,7 +41,7 @@ export type BookAngles = {
 
 export const DEFAULT_BOOK_ANGLES: BookAngles = {
   tilt: 14,
-  turn: 0,
+  turn: -6,
   roll: 0,
 }
 
@@ -74,7 +74,7 @@ export const CAMERA_RIG = {
 }
 
 /** 0° = face-on to the page, higher = more from above */
-export const DEFAULT_CAMERA_ANGLE = 28
+export const DEFAULT_CAMERA_ANGLE = 12
 
 export const CAMERA_ANGLE_LIMITS = {
   min: 0,
