@@ -9,100 +9,64 @@ export type BookEntry = BookMeta & {
   text: string
 }
 
-const loaders = import.meta.glob('../../books/*.txt', {
-  query: '?raw',
-  import: 'default',
-}) as Record<string, () => Promise<string>>
-
-function filenameFromPath(path: string): string {
-  const parts = path.split('/')
-  return parts[parts.length - 1] ?? path
-}
-
-function titleFromFilename(filename: string): string {
-  return filename
-    .replace(/\.txt$/i, '')
-    .replace(/[-_]+/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase())
-}
-
-/** Canonical titles/authors when Gutenberg headers are missing from the excerpt. */
-const KNOWN_BOOKS: Record<string, { title: string; author: string }> = {
-  odyssey: {
-    title: 'The Odyssey',
-    author: 'Homer',
-  },
-  thesecretsofthechimneys: {
-    title: 'The Secret of Chimneys',
-    author: 'Agatha Christie',
-  },
-  crimeandpunishment: {
-    title: 'Crime and Punishment',
-    author: 'Fyodor Dostoevsky',
-  },
-}
-
-function parseMetadata(raw: string, id: string, fallbackTitle: string) {
-  const known = KNOWN_BOOKS[id]
-  const title = raw.match(/^Title:\s*(.+)$/m)?.[1]?.trim()
-  const author = raw.match(/^Author:\s*(.+)$/m)?.[1]?.trim()
-  return {
-    title: known?.title || title || fallbackTitle,
-    author: known?.author || author || 'Unknown',
+/** Canonical library — served as static files from /books/*.txt */
+const KNOWN_BOOKS: Record<string, { title: string; author: string; filename: string }> =
+  {
+    odyssey: {
+      title: 'The Odyssey',
+      author: 'Homer',
+      filename: 'odyssey.txt',
+    },
+    thesecretsofthechimneys: {
+      title: 'The Secret of Chimneys',
+      author: 'Agatha Christie',
+      filename: 'thesecretsofthechimneys.txt',
+    },
+    crimeandpunishment: {
+      title: 'Crime and Punishment',
+      author: 'Fyodor Dostoevsky',
+      filename: 'crimeandpunishment.txt',
+    },
   }
-}
-
-const entries = Object.keys(loaders).map((path) => {
-  const filename = filenameFromPath(path)
-  const id = filename.replace(/\.txt$/i, '')
-  return {
-    id,
-    filename,
-    title: titleFromFilename(filename),
-    path,
-  }
-})
 
 /**
- * Books discovered from the project `books/` folder at build time.
+ * Books available in the library.
  */
-export const BOOKS: BookMeta[] = entries
-  .map(({ id, filename, title }) => ({
+export const BOOKS: BookMeta[] = Object.entries(KNOWN_BOOKS)
+  .map(([id, book]) => ({
     id,
-    filename,
-    title: KNOWN_BOOKS[id]?.title ?? title,
+    filename: book.filename,
+    title: book.title,
   }))
   .sort((a, b) => a.title.localeCompare(b.title))
 
-const pathById = new Map(entries.map((entry) => [entry.id, entry.path]))
 const bookCache = new Map<string, BookEntry>()
+
+function bookUrl(filename: string): string {
+  // Stable public URL — not a hashed JS chunk, so deploys won't 404 old imports
+  return `/books/${filename}`
+}
 
 export async function loadBook(id: string): Promise<BookEntry> {
   const cached = bookCache.get(id)
   if (cached) return cached
 
-  const path = pathById.get(id)
-  const loader = path ? loaders[path] : undefined
-  if (!path || !loader) {
+  const known = KNOWN_BOOKS[id]
+  if (!known) {
     throw new Error(`Unknown book: ${id}`)
   }
 
-  const text = await loader()
-  const listed = BOOKS.find((book) => book.id === id)
-  const known = KNOWN_BOOKS[id]
-  const fallbackTitle =
-    known?.title ?? listed?.title ?? titleFromFilename(`${id}.txt`)
-  const meta = parseMetadata(text, id, fallbackTitle)
-
-  if (listed) {
-    listed.title = meta.title
+  const response = await fetch(bookUrl(known.filename))
+  if (!response.ok) {
+    throw new Error(`Could not load ${known.title} (${response.status})`)
   }
 
+  const text = await response.text()
   const entry: BookEntry = {
     id,
-    filename: listed?.filename ?? `${id}.txt`,
-    title: meta.title,
-    author: meta.author,
+    filename: known.filename,
+    title: known.title,
+    author: known.author,
     text,
   }
 
@@ -113,11 +77,16 @@ export async function loadBook(id: string): Promise<BookEntry> {
 export async function loadBookMeta(
   id: string,
 ): Promise<BookMeta & { author: string }> {
-  const book = await loadBook(id)
+  const known = KNOWN_BOOKS[id]
+  if (!known) {
+    throw new Error(`Unknown book: ${id}`)
+  }
+
+  // Metadata does not need the full text body
   return {
-    id: book.id,
-    filename: book.filename,
-    title: book.title,
-    author: book.author,
+    id,
+    filename: known.filename,
+    title: known.title,
+    author: known.author,
   }
 }

@@ -21,4 +21,4 @@ npm run build
 - `src/components` — nav, hero, library, reader chrome
 - `src/ribbon` — 3D reading surface, drive mode, textures
 - `src/books` — catalog loaders and text preparation
-- `books/` — plain-text library sources
+- `books/` — plain-text library sources (copied to `public/books` for static serving)
