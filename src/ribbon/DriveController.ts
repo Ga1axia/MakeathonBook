@@ -1,4 +1,11 @@
 import * as THREE from 'three'
+import {
+  boostTargetMph,
+  clampCruiseMph,
+  CRUISE_SPEED_LIMITS,
+  mphToWorldSpeed,
+  SPEED_DIAL_MAX_MPH,
+} from './driveSpeed'
 import type { LineLayout } from './lineLayout'
 
 export type DrivePhase = 'driving' | 'entering' | 'exiting'
@@ -21,30 +28,42 @@ export type DriveState = {
   carScale: number
   /** Facing: +1 right, -1 left */
   facing: number
+  /** Instantaneous speed shown on the dial */
+  speedMph: number
+  /** User-set cruise target while holding drive */
+  cruiseMph: number
+  /** Double-tap W boost engaged */
+  boosting: boolean
 }
 
 export type DriveInput = {
   /** -1 left / +1 right (held) */
   moveX: number
+  /** Double-tap W acceleration */
+  boost: boolean
 }
 
 export type DriveControllerOptions = {
-  /** World units per second across a line while holding a key */
-  speed?: number
   /** Seconds to sink into / leave a portal */
   portalDuration?: number
   /** Seconds after a portal where edges only clamp (no re-entry) */
   edgeCooldown?: number
+  /** MPH per second while accelerating toward cruise */
+  accelMph?: number
+  /** MPH per second while boosting */
+  boostAccelMph?: number
+  /** MPH per second while coasting / braking to stop */
+  brakeMph?: number
 }
 
 const DEFAULTS = {
-  speed: 2.1,
-  portalDuration: 0.28,
+  portalDuration: 0.12,
   edgeCooldown: 0.2,
+  accelMph: 55,
+  boostAccelMph: 95,
+  brakeMph: 70,
 } as const
 
-/** How far past an edge counts as entering a portal (progress units). */
-const PORTAL_OVERSHOOT = 0.02
 /** Land slightly inset so held keys resume driving instead of re-portaling. */
 const LANDING_INSET = 0.04
 
@@ -55,6 +74,7 @@ function isDriveableLine(line: string | undefined): boolean {
 /**
  * Player-steered car under each text line.
  * Hold left/right to drive; portals trigger only after driving past a line end.
+ * Speed is MPH-based with cruise setting and double-tap boost.
  */
 export class DriveController {
   readonly state: DriveState = {
@@ -68,6 +88,9 @@ export class DriveController {
     portalBlend: 0,
     carScale: 1,
     facing: 1,
+    speedMph: 0,
+    cruiseMph: CRUISE_SPEED_LIMITS.default,
+    boosting: false,
   }
 
   private options: Required<DriveControllerOptions>
@@ -77,7 +100,7 @@ export class DriveController {
   private pendingTargetIndex: number | null = null
   private queuedJump: number | null = null
   private edgeCooldownTimer = 0
-  private input: DriveInput = { moveX: 0 }
+  private input: DriveInput = { moveX: 0, boost: false }
 
   constructor(options: DriveControllerOptions = {}) {
     this.options = { ...DEFAULTS, ...options }
@@ -85,6 +108,10 @@ export class DriveController {
 
   setInput(input: DriveInput): void {
     this.input = input
+  }
+
+  setCruiseMph(mph: number): void {
+    this.state.cruiseMph = clampCruiseMph(mph)
   }
 
   /**
@@ -116,11 +143,13 @@ export class DriveController {
       this.state.lift = 0
       this.state.portalBlend = 0
       this.state.carScale = 1
+      this.state.speedMph = 0
+      this.state.boosting = false
       this.state.phase = 'driving'
       this.pendingTargetIndex = null
       this.queuedJump = null
       this.edgeCooldownTimer = 0
-      this.input = { moveX: 0 }
+      this.input = { moveX: 0, boost: false }
     }
   }
 
@@ -163,12 +192,14 @@ export class DriveController {
     this.state.portalBlend = 0
     this.state.carScale = 1
     this.state.facing = 1
+    this.state.speedMph = 0
+    this.state.boosting = false
     this.portalTimer = 0
     this.pendingLineDirection = 1
     this.pendingTargetIndex = null
     this.queuedJump = null
     this.edgeCooldownTimer = 0
-    this.input = { moveX: 0 }
+    this.input = { moveX: 0, boost: false }
     this.syncPoseFromProgress()
     this.state.lift = 1
   }
@@ -176,32 +207,38 @@ export class DriveController {
   update(delta: number): DriveState {
     if (!this.state.active || !this.layout || this.layout.lines.length === 0) {
       this.state.lift = 0
+      this.state.speedMph = 0
+      this.state.boosting = false
       return this.state
     }
 
     const dt = Math.min(Math.max(delta, 0), 1 / 30)
-    const { speed, portalDuration } = this.options
+    const { portalDuration } = this.options
 
     if (this.edgeCooldownTimer > 0) {
       this.edgeCooldownTimer = Math.max(0, this.edgeCooldownTimer - dt)
     }
 
+    this.updateSpeed(dt)
+
     if (this.state.phase === 'driving') {
       const moveX = THREE.MathUtils.clamp(this.input.moveX, -1, 1)
-      if (moveX !== 0) {
+      const speed = mphToWorldSpeed(this.state.speedMph)
+
+      if (moveX !== 0 && speed > 0.001) {
         this.state.facing = moveX > 0 ? 1 : -1
         const span = this.layout.width
-        const prev = this.state.progress
-        this.state.progress += (moveX * speed * dt) / Math.max(0.001, span)
+        // Direction from keys; magnitude from speedometer physics
+        const signed = Math.sign(moveX)
+        this.state.progress += (signed * speed * dt) / Math.max(0.001, span)
 
         const canPortal = this.edgeCooldownTimer <= 0
-        const crossedRight = prev < 1 && this.state.progress >= 1 + PORTAL_OVERSHOOT
-        const crossedLeft = prev > 0 && this.state.progress <= -PORTAL_OVERSHOOT
-
-        if (canPortal && moveX > 0 && crossedRight) {
+        // Trigger once the car reaches the portal — don't require a single-frame overshoot
+        // (cruise acceleration often lands exactly on the edge and used to get stuck).
+        if (canPortal && signed > 0 && this.state.progress >= 1) {
           this.state.progress = 1
           this.beginPortal(1)
-        } else if (canPortal && moveX < 0 && crossedLeft) {
+        } else if (canPortal && signed < 0 && this.state.progress <= 0) {
           this.state.progress = 0
           this.beginPortal(-1)
         } else {
@@ -229,7 +266,6 @@ export class DriveController {
           this.findDriveableLine(this.state.lineIndex, this.pendingLineDirection)
         this.pendingTargetIndex = null
         this.state.lineIndex = next
-        // Enter next line from the side matching travel direction, slightly inset
         this.state.progress =
           this.pendingLineDirection > 0 ? LANDING_INSET : 1 - LANDING_INSET
         this.state.facing = this.pendingLineDirection
@@ -264,6 +300,41 @@ export class DriveController {
     return this.state
   }
 
+  private updateSpeed(dt: number): void {
+    const moveX = THREE.MathUtils.clamp(this.input.moveX, -1, 1)
+    const driving = moveX !== 0 && this.state.phase === 'driving'
+    const boosting = driving && this.input.boost && moveX > 0
+    this.state.boosting = boosting
+
+    let target = 0
+    if (driving) {
+      target = boosting
+        ? boostTargetMph(this.state.cruiseMph)
+        : this.state.cruiseMph
+    }
+
+    const { accelMph, boostAccelMph, brakeMph } = this.options
+    const rate = !driving
+      ? brakeMph
+      : boosting
+        ? boostAccelMph
+        : this.state.speedMph > target
+          ? brakeMph * 0.65
+          : accelMph
+
+    const diff = target - this.state.speedMph
+    const step = Math.sign(diff) * Math.min(Math.abs(diff), rate * dt)
+    this.state.speedMph = THREE.MathUtils.clamp(
+      this.state.speedMph + step,
+      0,
+      SPEED_DIAL_MAX_MPH,
+    )
+
+    if (!driving && this.state.speedMph < 0.35) {
+      this.state.speedMph = 0
+    }
+  }
+
   private startJump(target: number): void {
     if (!this.layout) return
 
@@ -288,7 +359,6 @@ export class DriveController {
 
   private beginPortal(direction: 1 | -1): void {
     if (!this.layout) return
-    // No other driveable line — stay put
     if (this.findDriveableLine(this.state.lineIndex, direction) === this.state.lineIndex) {
       this.state.progress = THREE.MathUtils.clamp(this.state.progress, 0, 1)
       this.syncPoseFromProgress()

@@ -10,6 +10,7 @@ type ReaderProps = {
   onAnglesChange: (angles: BookAngles) => void
   onCameraAngleChange: (angle: number) => void
   onTextChange: (text: string) => void
+  onCruiseChange: (mph: number) => void
 }
 
 /**
@@ -21,12 +22,12 @@ export function Reader({
   onAnglesChange,
   onCameraAngleChange,
   onTextChange,
+  onCruiseChange,
 }: ReaderProps) {
   const [panelOpen, setPanelOpen] = useState(false)
 
   const closePanel = () => {
     setPanelOpen(false)
-    // Drop focus from hidden menu controls so drive keys aren't swallowed
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur()
     }
@@ -47,6 +48,8 @@ export function Reader({
         text={session.book.text}
         angles={session.angles}
         cameraAngle={session.cameraAngle}
+        cruiseMph={session.cruiseMph}
+        onCruiseChange={onCruiseChange}
       />
 
       {!panelOpen ? (
@@ -80,6 +83,8 @@ export function Reader({
         onAnglesChange={onAnglesChange}
         cameraAngle={session.cameraAngle}
         onCameraAngleChange={onCameraAngleChange}
+        cruiseMph={session.cruiseMph}
+        onCruiseChange={onCruiseChange}
         text={session.book.text}
         onTextChange={onTextChange}
       />

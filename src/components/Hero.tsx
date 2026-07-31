@@ -1,52 +1,45 @@
+import spatialLogo from '../assets/spatial-logo.png'
+
 type HeroProps = {
   onTry: () => void
   onBrowse: () => void
 }
 
 /**
- * Landing hero — brand, headline, CTAs, and spatial preview frame.
+ * Landing hero — Spatial brand lockup, short pitch, CTAs.
  */
 export function Hero({ onTry, onBrowse }: HeroProps) {
   return (
-    <section className="hero">
-      <div className="hero__copy">
-        <p className="hero__brand">Ribbon</p>
-        <h1 className="hero__headline">Read in 3D.</h1>
-        <p className="hero__sub">
-          Upload a book or choose one from the library, then read through a
-          spatial interface where text is rendered as a navigable surface.
-        </p>
-        <div className="hero__actions">
-          <button type="button" className="btn btn--primary" onClick={onTry}>
-            Try it now
-          </button>
-          <button type="button" className="btn btn--secondary" onClick={onBrowse}>
-            Browse library
-          </button>
-        </div>
+    <section className="hero" aria-labelledby="hero-heading">
+      <h1 id="hero-heading" className="visually-hidden">
+        Spatial — Read beyond the page
+      </h1>
+
+      <div className="hero__mark">
+        <img
+          className="hero__logo"
+          src={spatialLogo}
+          alt=""
+          width={584}
+          height={508}
+          decoding="async"
+        />
       </div>
 
-      <div className="hero__visual" aria-hidden="true">
-        <div className="hero-preview">
-          <div className="hero-preview__page">
-            <div className="hero-preview__line hero-preview__line--active">
-              Each line is its own ribbon of paper.
-            </div>
-            <div className="hero-preview__line">
-              Words rise under your hand and fall away.
-            </div>
-            <div className="hero-preview__line">
-              Neighboring lines stir only a little.
-            </div>
-            <div className="hero-preview__line">
-              The rest of the page stays quiet.
-            </div>
-            <div className="hero-preview__line">
-              Type stays glued to the surface.
-            </div>
-            <div className="hero-preview__car" />
-          </div>
-        </div>
+      <p className="hero__sub">
+        Upload a book or choose one from the library, then read through a
+        spatial interface where text is rendered as a navigable surface.
+      </p>
+
+      <p className="hero__drive-cue">Drive W to scroll the page</p>
+
+      <div className="hero__actions">
+        <button type="button" className="btn btn--primary" onClick={onTry}>
+          Try it now
+        </button>
+        <button type="button" className="btn btn--secondary" onClick={onBrowse}>
+          Browse library
+        </button>
       </div>
     </section>
   )

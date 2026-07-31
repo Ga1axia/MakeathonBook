@@ -5,6 +5,7 @@ import { Home } from './pages/Home'
 import { Library } from './pages/Library'
 import { Reader } from './pages/Reader'
 import {
+  createDemoBook,
   createReaderSession,
   type AppPage,
   type LibraryBook,
@@ -54,6 +55,10 @@ function App() {
     )
   }
 
+  const updateCruise = (cruiseMph: number) => {
+    setSession((prev) => (prev ? { ...prev, cruiseMph } : prev))
+  }
+
   const showChrome = page !== 'reader'
 
   return (
@@ -69,7 +74,7 @@ function App() {
       <main className="app-shell__main">
         {page === 'home' ? (
           <Home
-            onTry={() => setPage('library')}
+            onTry={() => openBook(createDemoBook())}
             onBrowse={() => setPage('library')}
           />
         ) : null}
@@ -90,6 +95,7 @@ function App() {
             onAnglesChange={updateAngles}
             onCameraAngleChange={updateCameraAngle}
             onTextChange={updateText}
+            onCruiseChange={updateCruise}
           />
         ) : null}
       </main>

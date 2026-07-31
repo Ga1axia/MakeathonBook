@@ -1,5 +1,6 @@
 import { BookAngleControls } from './BookAngleControls'
 import type { BookAngles } from '../ribbon/bookLayout'
+import { CRUISE_SPEED_LIMITS } from '../ribbon/driveSpeed'
 
 type ReaderSettingsProps = {
   id?: string
@@ -11,6 +12,8 @@ type ReaderSettingsProps = {
   onAnglesChange: (angles: BookAngles) => void
   cameraAngle: number
   onCameraAngleChange: (angle: number) => void
+  cruiseMph: number
+  onCruiseChange: (mph: number) => void
   text: string
   onTextChange: (text: string) => void
 }
@@ -28,6 +31,8 @@ export function ReaderSettings({
   onAnglesChange,
   cameraAngle,
   onCameraAngleChange,
+  cruiseMph,
+  onCruiseChange,
   text,
   onTextChange,
 }: ReaderSettingsProps) {
@@ -41,7 +46,7 @@ export function ReaderSettings({
     >
       <header className="reader-settings__header">
         <div className="reader-settings__top">
-          <p className="reader-settings__brand">Ribbon</p>
+          <p className="reader-settings__brand">Spatial</p>
           <button
             type="button"
             className="reader-settings__close"
@@ -52,8 +57,8 @@ export function ReaderSettings({
         </div>
         <h1 className="reader-settings__title">{title}</h1>
         <p className="reader-settings__hint">
-          W/↑ or D/→ drive forward; S/↓ or A/← reverse. Reach a portal to change
-          lines, or use the index.
+          W/↑ or D/→ drive forward; S/↓ or A/← reverse. Double-tap W to boost.
+          Set cruise on the dial or below.
         </p>
         <button
           type="button"
@@ -63,6 +68,23 @@ export function ReaderSettings({
           Library
         </button>
       </header>
+
+      <div className="book-angle-controls">
+        <label className="book-angle-controls__slider">
+          <span className="book-angle-controls__meta">
+            <span>Cruise speed</span>
+            <span>{cruiseMph} mph</span>
+          </span>
+          <input
+            type="range"
+            min={CRUISE_SPEED_LIMITS.min}
+            max={CRUISE_SPEED_LIMITS.max}
+            step={CRUISE_SPEED_LIMITS.step}
+            value={cruiseMph}
+            onChange={(event) => onCruiseChange(Number(event.target.value))}
+          />
+        </label>
+      </div>
 
       <BookAngleControls
         value={angles}

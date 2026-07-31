@@ -3,6 +3,7 @@ import { ContactShadows } from '@react-three/drei'
 import { useMemo, useRef, useState, type RefObject } from 'react'
 import * as THREE from 'three'
 import { LineIndex } from '../components/LineIndex'
+import { Speedometer, type SpeedTelemetry } from '../components/Speedometer'
 import {
   BOOK,
   BOOK_POSITION,
@@ -11,6 +12,7 @@ import {
   type BookAngles,
   type PageScrollState,
 } from './bookLayout'
+import { CRUISE_SPEED_LIMITS } from './driveSpeed'
 import { DriveMode } from './DriveMode'
 import type { DriveState } from './DriveController'
 import { buildLineLayout } from './lineLayout'
@@ -21,13 +23,26 @@ export type RibbonSceneProps = {
   angles: BookAngles
   /** Degrees from face-on toward a top-down view */
   cameraAngle: number
+  cruiseMph: number
+  onCruiseChange: (mph: number) => void
 }
 
 /**
  * Vertical book page with drive-to-read: a car runs under each line through portals.
  */
-export function RibbonScene({ text, angles, cameraAngle }: RibbonSceneProps) {
+export function RibbonScene({
+  text,
+  angles,
+  cameraAngle,
+  cruiseMph,
+  onCruiseChange,
+}: RibbonSceneProps) {
   const jumpRequestRef = useRef<number | null>(null)
+  const telemetryRef = useRef<SpeedTelemetry>({
+    mph: 0,
+    cruiseMph: CRUISE_SPEED_LIMITS.default,
+    boosting: false,
+  })
   const [activeLineIndex, setActiveLineIndex] = useState(0)
   const layout = useMemo(() => buildLineLayout(text), [text])
 
@@ -61,6 +76,8 @@ export function RibbonScene({ text, angles, cameraAngle }: RibbonSceneProps) {
           text={text}
           angles={angles}
           cameraAngle={cameraAngle}
+          cruiseMph={cruiseMph}
+          telemetryRef={telemetryRef}
           jumpRequestRef={jumpRequestRef}
           onLineIndexChange={setActiveLineIndex}
         />
@@ -73,6 +90,12 @@ export function RibbonScene({ text, angles, cameraAngle }: RibbonSceneProps) {
           color="#3a3732"
         />
       </Canvas>
+
+      <Speedometer
+        telemetryRef={telemetryRef}
+        cruiseMph={cruiseMph}
+        onCruiseChange={onCruiseChange}
+      />
 
       <LineIndex
         lines={layout.lines}
@@ -89,12 +112,16 @@ function BookStage({
   text,
   angles,
   cameraAngle,
+  cruiseMph,
+  telemetryRef,
   jumpRequestRef,
   onLineIndexChange,
 }: {
   text: string
   angles: BookAngles
   cameraAngle: number
+  cruiseMph: number
+  telemetryRef: RefObject<SpeedTelemetry>
   jumpRequestRef: RefObject<number | null>
   onLineIndexChange: (lineIndex: number) => void
 }) {
@@ -114,6 +141,9 @@ function BookStage({
     portalBlend: 0,
     carScale: 1,
     facing: 1,
+    speedMph: 0,
+    cruiseMph: CRUISE_SPEED_LIMITS.default,
+    boosting: false,
   })
 
   return (
@@ -129,6 +159,8 @@ function BookStage({
         driveRef={driveRef}
         text={text}
         angles={angles}
+        cruiseMph={cruiseMph}
+        telemetryRef={telemetryRef}
         jumpRequestRef={jumpRequestRef}
         onLineIndexChange={onLineIndexChange}
       />
@@ -194,6 +226,8 @@ function LeftPage({
   driveRef,
   text,
   angles,
+  cruiseMph,
+  telemetryRef,
   jumpRequestRef,
   onLineIndexChange,
 }: {
@@ -202,6 +236,8 @@ function LeftPage({
   driveRef: RefObject<DriveState>
   text: string
   angles: BookAngles
+  cruiseMph: number
+  telemetryRef: RefObject<SpeedTelemetry>
   jumpRequestRef: RefObject<number | null>
   onLineIndexChange: (lineIndex: number) => void
 }) {
@@ -217,6 +253,8 @@ function LeftPage({
         scrollRef={scrollRef}
         jumpRequestRef={jumpRequestRef}
         onLineIndexChange={onLineIndexChange}
+        cruiseMph={cruiseMph}
+        telemetryRef={telemetryRef}
       />
     </group>
   )

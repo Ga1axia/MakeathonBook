@@ -1,6 +1,7 @@
 import { DemoPreview } from '../components/DemoPreview'
 import { FeatureCards } from '../components/FeatureCards'
 import { Hero } from '../components/Hero'
+import { LandingDrive } from '../components/LandingDrive'
 
 type HomeProps = {
   onTry: () => void
@@ -8,11 +9,13 @@ type HomeProps = {
 }
 
 /**
- * Marketing landing — concept, features, preview, CTA.
+ * Marketing landing — drive the car down the page to scroll through the story.
  */
 export function Home({ onTry, onBrowse }: HomeProps) {
   return (
     <div className="page page--home">
+      <LandingDrive />
+
       <Hero onTry={onTry} onBrowse={onBrowse} />
 
       <section className="concept" aria-labelledby="concept-heading">
