@@ -5,7 +5,7 @@ export const SPEED_DIAL_MAX_MPH = 120
 export const CRUISE_SPEED_LIMITS = {
   min: 10,
   max: 80,
-  default: 30,
+  default: 60,
   step: 1,
 } as const
 

@@ -23,12 +23,18 @@ export function prepareBookText(raw: string): string {
     text = text.slice(bodyMatch.index + 1)
   }
 
-  text = text.replace(/\n{3,}/g, '\n\n').trim()
+  // Drop blank lines (Enter gaps) so the drive path stays continuous
+  text = text
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim().length > 0)
+    .join('\n')
+    .trim()
 
   if (text.length <= MAX_CHARS) return text
 
   const cut = text.slice(0, MAX_CHARS)
-  const lastBreak = Math.max(cut.lastIndexOf('\n\n'), cut.lastIndexOf('. '))
+  const lastBreak = Math.max(cut.lastIndexOf('\n'), cut.lastIndexOf('. '))
   const excerpt = (lastBreak > MAX_CHARS * 0.55 ? cut.slice(0, lastBreak + 1) : cut).trim()
-  return `${excerpt}\n\n…`
+  return `${excerpt}\n…`
 }

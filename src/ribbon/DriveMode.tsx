@@ -241,13 +241,20 @@ export function DriveMode({
       carGroup.current.visible = state.carScale > 0.02
     }
 
-    const half = layout.halfWidth
+    const lineIdx = Math.max(
+      0,
+      Math.min(state.lineIndex, layout.textEndXs.length - 1),
+    )
+    const textStart = layout.textStartXs[lineIdx] ?? -layout.halfWidth
+    const textEnd = layout.textEndXs[lineIdx] ?? layout.halfWidth
+
     if (endPortal.current) {
-      endPortal.current.position.set(half + 0.06, laneY, 0.04)
+      // Sit just past the last glyph — ignore trailing spaces / empty ribbon
+      endPortal.current.position.set(textEnd + 0.06, laneY, 0.04)
       endPortal.current.visible = true
     }
     if (startPortal.current) {
-      startPortal.current.position.set(-half - 0.06, laneY, 0.04)
+      startPortal.current.position.set(textStart - 0.06, laneY, 0.04)
       startPortal.current.visible = true
     }
   })

@@ -8,7 +8,7 @@ import {
 } from './driveSpeed'
 import type { LineLayout } from './lineLayout'
 
-export type DrivePhase = 'driving' | 'entering' | 'exiting'
+export type DrivePhase = 'driving' | 'entering' | 'exiting' | 'finished'
 
 export type DriveState = {
   active: boolean
@@ -100,6 +100,8 @@ export class DriveController {
   private pendingTargetIndex: number | null = null
   private queuedJump: number | null = null
   private edgeCooldownTimer = 0
+  /** Entering the end portal with nowhere left to go — vanish for good */
+  private finishExit = false
   private input: DriveInput = { moveX: 0, boost: false }
 
   constructor(options: DriveControllerOptions = {}) {
@@ -125,6 +127,17 @@ export class DriveController {
       ? clamped
       : this.findDriveableLine(clamped, 1, true)
 
+    if (this.state.phase === 'finished') {
+      this.finishExit = false
+      this.state.phase = 'driving'
+      this.state.carScale = 1
+      this.state.lift = 1
+      this.state.portalBlend = 0
+      this.state.speedMph = 0
+      this.startJump(target)
+      return
+    }
+
     if (this.state.phase !== 'driving') {
       this.queuedJump = target
       return
@@ -149,6 +162,7 @@ export class DriveController {
       this.pendingTargetIndex = null
       this.queuedJump = null
       this.edgeCooldownTimer = 0
+      this.finishExit = false
       this.input = { moveX: 0, boost: false }
     }
   }
@@ -157,6 +171,7 @@ export class DriveController {
   ensureActive(): void {
     if (this.state.active) return
     this.state.active = true
+    if (this.state.phase === 'finished') return
     if (this.layout) {
       this.syncPoseFromProgress()
       this.state.lift = 1
@@ -199,6 +214,7 @@ export class DriveController {
     this.pendingTargetIndex = null
     this.queuedJump = null
     this.edgeCooldownTimer = 0
+    this.finishExit = false
     this.input = { moveX: 0, boost: false }
     this.syncPoseFromProgress()
     this.state.lift = 1
@@ -207,6 +223,15 @@ export class DriveController {
   update(delta: number): DriveState {
     if (!this.state.active || !this.layout || this.layout.lines.length === 0) {
       this.state.lift = 0
+      this.state.speedMph = 0
+      this.state.boosting = false
+      return this.state
+    }
+
+    if (this.state.phase === 'finished') {
+      this.state.carScale = 0
+      this.state.lift = 0
+      this.state.portalBlend = 1
       this.state.speedMph = 0
       this.state.boosting = false
       return this.state
@@ -227,10 +252,14 @@ export class DriveController {
 
       if (moveX !== 0 && speed > 0.001) {
         this.state.facing = moveX > 0 ? 1 : -1
-        const span = this.layout.width
+        const idx = this.state.lineIndex
+        const startX = this.layout.textStartXs[idx] ?? -this.layout.halfWidth
+        const endX = this.layout.textEndXs[idx] ?? this.layout.halfWidth
+        // Traverse only the glyph span so short lines don't pad with empty space
+        const span = Math.max(0.05, endX - startX)
         // Direction from keys; magnitude from speedometer physics
         const signed = Math.sign(moveX)
-        this.state.progress += (signed * speed * dt) / Math.max(0.001, span)
+        this.state.progress += (signed * speed * dt) / span
 
         const canPortal = this.edgeCooldownTimer <= 0
         // Trigger once the car reaches the portal — don't require a single-frame overshoot
@@ -261,6 +290,18 @@ export class DriveController {
       this.syncPoseFromProgress()
 
       if (t >= 1) {
+        if (this.finishExit) {
+          this.finishExit = false
+          this.state.phase = 'finished'
+          this.state.carScale = 0
+          this.state.lift = 0
+          this.state.portalBlend = 1
+          this.state.speedMph = 0
+          this.state.boosting = false
+          this.input = { moveX: 0, boost: false }
+          return this.state
+        }
+
         const next =
           this.pendingTargetIndex ??
           this.findDriveableLine(this.state.lineIndex, this.pendingLineDirection)
@@ -273,7 +314,7 @@ export class DriveController {
         this.portalTimer = 0
         this.syncPoseFromProgress()
       }
-    } else {
+    } else if (this.state.phase === 'exiting') {
       // exiting
       this.portalTimer += dt
       const t = Math.min(1, this.portalTimer / portalDuration)
@@ -360,6 +401,19 @@ export class DriveController {
   private beginPortal(direction: 1 | -1): void {
     if (!this.layout) return
     if (this.findDriveableLine(this.state.lineIndex, direction) === this.state.lineIndex) {
+      // End of the book (forward): vanish into the portal instead of bouncing
+      if (direction > 0) {
+        this.finishExit = true
+        this.pendingTargetIndex = null
+        this.pendingLineDirection = direction
+        this.state.phase = 'entering'
+        this.portalTimer = 0
+        this.state.progress = 1
+        this.state.facing = 1
+        this.syncPoseFromProgress()
+        return
+      }
+
       this.state.progress = THREE.MathUtils.clamp(this.state.progress, 0, 1)
       this.syncPoseFromProgress()
       this.state.lift = 1
@@ -368,6 +422,7 @@ export class DriveController {
       return
     }
 
+    this.finishExit = false
     this.pendingTargetIndex = null
     this.pendingLineDirection = direction
     this.state.phase = 'entering'
@@ -406,9 +461,11 @@ export class DriveController {
 
   private syncPoseFromProgress(): void {
     if (!this.layout) return
-    const { halfWidth, lineCenters } = this.layout
+    const { lineCenters, textStartXs, textEndXs, halfWidth } = this.layout
     const idx = THREE.MathUtils.clamp(this.state.lineIndex, 0, lineCenters.length - 1)
-    this.state.x = THREE.MathUtils.lerp(-halfWidth, halfWidth, this.state.progress)
+    const startX = textStartXs[idx] ?? -halfWidth
+    const endX = textEndXs[idx] ?? halfWidth
+    this.state.x = THREE.MathUtils.lerp(startX, endX, this.state.progress)
     this.state.y = lineCenters[idx] ?? 0
   }
 }

@@ -25,6 +25,7 @@ export function Reader({
   onCruiseChange,
 }: ReaderProps) {
   const [panelOpen, setPanelOpen] = useState(false)
+  const isDemo = session.book.id === 'demo-spatial'
 
   const closePanel = () => {
     setPanelOpen(false)
@@ -61,6 +62,16 @@ export function Reader({
           aria-controls="reader-panel"
         >
           Menu
+        </button>
+      ) : null}
+
+      {isDemo && !panelOpen ? (
+        <button
+          type="button"
+          className="reader-library-cta"
+          onClick={onBack}
+        >
+          Browse library
         </button>
       ) : null}
 

@@ -787,6 +787,32 @@
   border-color: var(--color-fg);
 }
 
+.reader-library-cta {
+  position: absolute;
+  left: 50%;
+  bottom: 1.15rem;
+  z-index: 12;
+  transform: translateX(-50%);
+  border: 1px solid var(--color-border-strong);
+  background: rgba(250, 250, 250, 0.94);
+  backdrop-filter: blur(10px);
+  color: var(--color-fg);
+  padding: 0.65rem 1.15rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition:
+    background var(--duration) var(--ease-out),
+    border-color var(--duration) var(--ease-out);
+}
+
+.reader-library-cta:hover {
+  border-color: var(--color-fg);
+  background: #fff;
+}
+
 .reader-menu-backdrop {
   position: absolute;
   inset: 0;
@@ -1332,5 +1358,11 @@
 
   .speedometer__mph {
     font-size: 0.95rem;
+  }
+
+  .reader-library-cta {
+    bottom: 0.85rem;
+    padding: 0.55rem 0.95rem;
+    font-size: 0.82rem;
   }
 }

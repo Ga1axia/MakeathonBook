@@ -27,11 +27,8 @@ export type ReaderSession = {
 
 /** Short sample used by “Try it now” so drive mode starts immediately. */
 export const DEMO_TEXT = `The page is not flat.
-
 Each line is its own ribbon of paper. Drive left to right under the words — they rise under the car and fall away on either side, as if the line itself were being lifted from the book.
-
 Neighboring lines stir only a little. The rest of the page stays quiet. Type stays glued to the surface — it turns with every bend, never floating free of the paper it belongs to.
-
 Reach a portal at the end of a line to continue on the next.`
 
 export function createDemoBook(): LibraryBook {

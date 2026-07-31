@@ -21,6 +21,8 @@ export const BOOK = {
   textureWidth: 1800,
   /** ~1800 * (0.118 / 4.15) ≈ 51 */
   textureHeight: 56,
+  /** Horizontal padding inside each text strip (canvas px) */
+  textPaddingX: 36,
   /** Glyph size on the strip canvas — a bit larger than standard book body */
   fontSize: 44,
   fontFamily: '"IBM Plex Serif", "Source Serif 4", Georgia, serif',
@@ -40,7 +42,7 @@ export type BookAngles = {
 }
 
 export const DEFAULT_BOOK_ANGLES: BookAngles = {
-  tilt: 14,
+  tilt: -15,
   turn: -6,
   roll: 0,
 }
@@ -68,9 +70,9 @@ export const CAMERA_RIG = {
   lookBottomY: -BOOK.pageHeight * 0.4,
   /**
    * Drive-mode framing: fraction of the viewport height from the top
-   * where the car should sit (0.75 = three-quarters down the screen).
+   * where the car should sit (0.25 = three-quarters up the screen).
    */
-  driveCarScreenY: 0.75,
+  driveCarScreenY: 0.25,
 }
 
 /** 0° = face-on to the page, higher = more from above */
