@@ -26,12 +26,29 @@ function titleFromFilename(filename: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase())
 }
 
-function parseMetadata(raw: string, fallbackTitle: string) {
+/** Canonical titles/authors when Gutenberg headers are missing from the excerpt. */
+const KNOWN_BOOKS: Record<string, { title: string; author: string }> = {
+  odyssey: {
+    title: 'The Odyssey',
+    author: 'Homer',
+  },
+  thesecretsofthechimneys: {
+    title: 'The Secret of Chimneys',
+    author: 'Agatha Christie',
+  },
+  crimeandpunishment: {
+    title: 'Crime and Punishment',
+    author: 'Fyodor Dostoevsky',
+  },
+}
+
+function parseMetadata(raw: string, id: string, fallbackTitle: string) {
+  const known = KNOWN_BOOKS[id]
   const title = raw.match(/^Title:\s*(.+)$/m)?.[1]?.trim()
   const author = raw.match(/^Author:\s*(.+)$/m)?.[1]?.trim()
   return {
-    title: title || fallbackTitle,
-    author: author || 'Unknown',
+    title: known?.title || title || fallbackTitle,
+    author: known?.author || author || 'Unknown',
   }
 }
 
@@ -50,7 +67,11 @@ const entries = Object.keys(loaders).map((path) => {
  * Books discovered from the project `books/` folder at build time.
  */
 export const BOOKS: BookMeta[] = entries
-  .map(({ id, filename, title }) => ({ id, filename, title }))
+  .map(({ id, filename, title }) => ({
+    id,
+    filename,
+    title: KNOWN_BOOKS[id]?.title ?? title,
+  }))
   .sort((a, b) => a.title.localeCompare(b.title))
 
 const pathById = new Map(entries.map((entry) => [entry.id, entry.path]))
@@ -68,8 +89,10 @@ export async function loadBook(id: string): Promise<BookEntry> {
 
   const text = await loader()
   const listed = BOOKS.find((book) => book.id === id)
-  const fallbackTitle = listed?.title ?? titleFromFilename(`${id}.txt`)
-  const meta = parseMetadata(text, fallbackTitle)
+  const known = KNOWN_BOOKS[id]
+  const fallbackTitle =
+    known?.title ?? listed?.title ?? titleFromFilename(`${id}.txt`)
+  const meta = parseMetadata(text, id, fallbackTitle)
 
   if (listed) {
     listed.title = meta.title
