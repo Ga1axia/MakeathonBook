@@ -5,26 +5,15 @@ type ReaderCanvasProps = {
   text: string
   angles: BookAngles
   cameraAngle: number
-  driveMode: boolean
 }
 
 /**
- * Full-bleed 3D reading surface wrapper.
+ * Full-bleed drive-to-read surface.
  */
-export function ReaderCanvas({
-  text,
-  angles,
-  cameraAngle,
-  driveMode,
-}: ReaderCanvasProps) {
+export function ReaderCanvas({ text, angles, cameraAngle }: ReaderCanvasProps) {
   return (
     <div className="reader-canvas">
-      <RibbonScene
-        text={text}
-        angles={angles}
-        cameraAngle={cameraAngle}
-        driveMode={driveMode}
-      />
+      <RibbonScene text={text} angles={angles} cameraAngle={cameraAngle} />
     </div>
   )
 }

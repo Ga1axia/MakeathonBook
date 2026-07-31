@@ -10,18 +10,16 @@ export function DemoPreview({ onOpenLibrary }: DemoPreviewProps) {
     <section className="demo-preview" aria-labelledby="demo-heading">
       <div className="section-inner">
         <div className="section-heading">
-          <h2 id="demo-heading">A page you can move through</h2>
+          <h2 id="demo-heading">A page you can drive through</h2>
           <p>
-            In standard mode, lines lift under the pointer. In drive mode, a
-            quiet path carries you left to right, then through a portal to the
-            next line.
+            A quiet path carries you left to right under each line, then through
+            a portal to the next — while the text stays legible and focused.
           </p>
         </div>
 
         <div className="demo-preview__frame">
           <div className="demo-preview__chrome">
-            <span>Standard</span>
-            <span className="demo-preview__chrome-muted">Drive</span>
+            <span>Drive to read</span>
           </div>
           <div className="demo-preview__stage">
             <div className="demo-preview__surface">

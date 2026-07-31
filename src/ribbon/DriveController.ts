@@ -26,29 +26,35 @@ export type DriveState = {
 export type DriveInput = {
   /** -1 left / +1 right (held) */
   moveX: number
-  /** Queued line change: -1 previous / +1 next (consumed once) */
-  lineStep: number
 }
 
 export type DriveControllerOptions = {
-  /** Units per second across a line while holding a key */
+  /** World units per second across a line while holding a key */
   speed?: number
   /** Seconds to sink into / leave a portal */
   portalDuration?: number
+  /** Seconds after a portal where edges only clamp (no re-entry) */
+  edgeCooldown?: number
 }
 
 const DEFAULTS = {
-  speed: 1.65,
-  portalDuration: 0.16,
+  speed: 2.1,
+  portalDuration: 0.28,
+  edgeCooldown: 0.2,
 } as const
+
+/** How far past an edge counts as entering a portal (progress units). */
+const PORTAL_OVERSHOOT = 0.02
+/** Land slightly inset so held keys resume driving instead of re-portaling. */
+const LANDING_INSET = 0.04
 
 function isDriveableLine(line: string | undefined): boolean {
   return Boolean(line && line.trim().length > 0)
 }
 
 /**
- * Player-steered car under each text line. WASD / arrows move;
- * blank (whitespace-only) lines are skipped through a portal.
+ * Player-steered car under each text line.
+ * Hold left/right to drive; portals trigger only after driving past a line end.
  */
 export class DriveController {
   readonly state: DriveState = {
@@ -70,7 +76,8 @@ export class DriveController {
   private pendingLineDirection: 1 | -1 = 1
   private pendingTargetIndex: number | null = null
   private queuedJump: number | null = null
-  private input: DriveInput = { moveX: 0, lineStep: 0 }
+  private edgeCooldownTimer = 0
+  private input: DriveInput = { moveX: 0 }
 
   constructor(options: DriveControllerOptions = {}) {
     this.options = { ...DEFAULTS, ...options }
@@ -100,6 +107,8 @@ export class DriveController {
   }
 
   setActive(active: boolean): void {
+    if (active === this.state.active) return
+
     this.state.active = active
     if (active) {
       this.resetToStart()
@@ -110,7 +119,22 @@ export class DriveController {
       this.state.phase = 'driving'
       this.pendingTargetIndex = null
       this.queuedJump = null
-      this.input = { moveX: 0, lineStep: 0 }
+      this.edgeCooldownTimer = 0
+      this.input = { moveX: 0 }
+    }
+  }
+
+  /** Re-enable without resetting line position (safe to call every frame). */
+  ensureActive(): void {
+    if (this.state.active) return
+    this.state.active = true
+    if (this.layout) {
+      this.syncPoseFromProgress()
+      this.state.lift = 1
+      this.state.carScale = 1
+      this.state.phase = 'driving'
+    } else {
+      this.resetToStart()
     }
   }
 
@@ -121,7 +145,7 @@ export class DriveController {
     if (!isDriveableLine(layout.lines[this.state.lineIndex])) {
       const next = this.findDriveableLine(this.state.lineIndex, 1)
       this.state.lineIndex = next
-      this.state.progress = 0
+      this.state.progress = LANDING_INSET
     } else {
       this.state.lineIndex = THREE.MathUtils.clamp(
         this.state.lineIndex,
@@ -134,7 +158,7 @@ export class DriveController {
 
   resetToStart(): void {
     this.state.lineIndex = this.findDriveableLine(0, 1, true)
-    this.state.progress = 0
+    this.state.progress = LANDING_INSET
     this.state.phase = 'driving'
     this.state.portalBlend = 0
     this.state.carScale = 1
@@ -143,7 +167,8 @@ export class DriveController {
     this.pendingLineDirection = 1
     this.pendingTargetIndex = null
     this.queuedJump = null
-    this.input = { moveX: 0, lineStep: 0 }
+    this.edgeCooldownTimer = 0
+    this.input = { moveX: 0 }
     this.syncPoseFromProgress()
     this.state.lift = 1
   }
@@ -154,28 +179,33 @@ export class DriveController {
       return this.state
     }
 
+    const dt = Math.min(Math.max(delta, 0), 1 / 30)
     const { speed, portalDuration } = this.options
 
+    if (this.edgeCooldownTimer > 0) {
+      this.edgeCooldownTimer = Math.max(0, this.edgeCooldownTimer - dt)
+    }
+
     if (this.state.phase === 'driving') {
-      const lineStep = this.input.lineStep
-      this.input.lineStep = 0
+      const moveX = THREE.MathUtils.clamp(this.input.moveX, -1, 1)
+      if (moveX !== 0) {
+        this.state.facing = moveX > 0 ? 1 : -1
+        const span = this.layout.width
+        const prev = this.state.progress
+        this.state.progress += (moveX * speed * dt) / Math.max(0.001, span)
 
-      if (lineStep !== 0) {
-        this.beginPortal(lineStep > 0 ? 1 : -1)
-      } else {
-        const moveX = THREE.MathUtils.clamp(this.input.moveX, -1, 1)
-        if (moveX !== 0) {
-          this.state.facing = moveX > 0 ? 1 : -1
-          const span = this.layout.width
-          this.state.progress += (moveX * speed * delta) / Math.max(0.001, span)
+        const canPortal = this.edgeCooldownTimer <= 0
+        const crossedRight = prev < 1 && this.state.progress >= 1 + PORTAL_OVERSHOOT
+        const crossedLeft = prev > 0 && this.state.progress <= -PORTAL_OVERSHOOT
 
-          if (this.state.progress >= 1) {
-            this.state.progress = 1
-            this.beginPortal(1)
-          } else if (this.state.progress <= 0) {
-            this.state.progress = 0
-            this.beginPortal(-1)
-          }
+        if (canPortal && moveX > 0 && crossedRight) {
+          this.state.progress = 1
+          this.beginPortal(1)
+        } else if (canPortal && moveX < 0 && crossedLeft) {
+          this.state.progress = 0
+          this.beginPortal(-1)
+        } else {
+          this.state.progress = THREE.MathUtils.clamp(this.state.progress, 0, 1)
         }
       }
 
@@ -186,7 +216,7 @@ export class DriveController {
         this.state.carScale = 1
       }
     } else if (this.state.phase === 'entering') {
-      this.portalTimer += delta
+      this.portalTimer += dt
       const t = Math.min(1, this.portalTimer / portalDuration)
       this.state.portalBlend = t
       this.state.carScale = 1 - t
@@ -199,8 +229,9 @@ export class DriveController {
           this.findDriveableLine(this.state.lineIndex, this.pendingLineDirection)
         this.pendingTargetIndex = null
         this.state.lineIndex = next
-        // Enter next line from the side matching travel direction
-        this.state.progress = this.pendingLineDirection > 0 ? 0 : 1
+        // Enter next line from the side matching travel direction, slightly inset
+        this.state.progress =
+          this.pendingLineDirection > 0 ? LANDING_INSET : 1 - LANDING_INSET
         this.state.facing = this.pendingLineDirection
         this.state.phase = 'exiting'
         this.portalTimer = 0
@@ -208,7 +239,7 @@ export class DriveController {
       }
     } else {
       // exiting
-      this.portalTimer += delta
+      this.portalTimer += dt
       const t = Math.min(1, this.portalTimer / portalDuration)
       this.state.portalBlend = 1 - t
       this.state.carScale = t
@@ -220,6 +251,7 @@ export class DriveController {
         this.state.portalBlend = 0
         this.state.carScale = 1
         this.state.lift = 1
+        this.edgeCooldownTimer = this.options.edgeCooldown
 
         if (this.queuedJump !== null) {
           const nextJump = this.queuedJump
@@ -236,7 +268,7 @@ export class DriveController {
     if (!this.layout) return
 
     if (target === this.state.lineIndex) {
-      this.state.progress = 0
+      this.state.progress = LANDING_INSET
       this.state.facing = 1
       this.syncPoseFromProgress()
       this.state.lift = 1

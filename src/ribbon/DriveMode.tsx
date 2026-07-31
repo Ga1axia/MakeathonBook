@@ -9,7 +9,6 @@ import { SwirlPortal } from './SwirlPortal'
 
 export type DriveModeProps = {
   text: string
-  enabled: boolean
   driveRef: RefObject<DriveState>
   scrollRef: RefObject<PageScrollState>
   /** Set to a line index to request a portal jump; cleared after handling */
@@ -22,15 +21,58 @@ type KeyFlags = {
   reverse: boolean
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
+/** Only block keys when the user is actually typing text — not sliders/buttons. */
+function isTextEntryTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
-  const tag = target.tagName
-  return (
-    tag === 'INPUT' ||
-    tag === 'TEXTAREA' ||
-    tag === 'SELECT' ||
-    target.isContentEditable
-  )
+  if (target.isContentEditable) return true
+  if (target instanceof HTMLTextAreaElement) return true
+  if (target instanceof HTMLSelectElement) return true
+  if (target instanceof HTMLInputElement) {
+    const type = (target.type || 'text').toLowerCase()
+    return (
+      type === 'text' ||
+      type === 'search' ||
+      type === 'email' ||
+      type === 'password' ||
+      type === 'url' ||
+      type === 'tel' ||
+      type === 'number'
+    )
+  }
+  return false
+}
+
+function keyToMove(code: string, key: string): 'forward' | 'reverse' | null {
+  switch (code) {
+    case 'KeyW':
+    case 'KeyD':
+    case 'ArrowUp':
+    case 'ArrowRight':
+      return 'forward'
+    case 'KeyS':
+    case 'KeyA':
+    case 'ArrowDown':
+    case 'ArrowLeft':
+      return 'reverse'
+    default:
+      break
+  }
+
+  // Fallback for layouts where event.code is unreliable
+  switch (key.toLowerCase()) {
+    case 'w':
+    case 'd':
+    case 'arrowup':
+    case 'arrowright':
+      return 'forward'
+    case 's':
+    case 'a':
+    case 'arrowdown':
+    case 'arrowleft':
+      return 'reverse'
+    default:
+      return null
+  }
 }
 
 /**
@@ -39,7 +81,6 @@ function isTypingTarget(target: EventTarget | null): boolean {
  */
 export function DriveMode({
   text,
-  enabled,
   driveRef,
   scrollRef,
   jumpRequestRef,
@@ -61,61 +102,49 @@ export function DriveMode({
 
   useEffect(() => {
     controller.setLayout(layout)
-  }, [controller, layout])
+    controller.setActive(true)
+    if (driveRef.current) Object.assign(driveRef.current, controller.state)
+  }, [controller, layout, driveRef])
 
   useEffect(() => {
-    controller.setActive(enabled)
-    if (driveRef.current) Object.assign(driveRef.current, controller.state)
-    if (!enabled) {
+    return () => {
+      controller.setActive(false)
       keysRef.current = { forward: false, reverse: false }
     }
-  }, [controller, enabled, driveRef])
+  }, [controller])
 
   useEffect(() => {
-    if (!enabled) return
-
-    const applyKey = (code: string, pressed: boolean): boolean => {
-      switch (code) {
-        case 'KeyW':
-        case 'ArrowUp':
-        case 'KeyD':
-        case 'ArrowRight':
-          keysRef.current.forward = pressed
-          return true
-        case 'KeyS':
-        case 'ArrowDown':
-        case 'KeyA':
-        case 'ArrowLeft':
-          keysRef.current.reverse = pressed
-          return true
-        default:
-          return false
-      }
+    const applyKey = (event: KeyboardEvent, pressed: boolean): boolean => {
+      const move = keyToMove(event.code, event.key)
+      if (!move) return false
+      keysRef.current[move] = pressed
+      return true
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey || event.ctrlKey || event.altKey) return
-      if (isTypingTarget(event.target)) return
-      if (applyKey(event.code, true)) event.preventDefault()
+      if (isTextEntryTarget(event.target)) return
+      if (applyKey(event, true)) event.preventDefault()
     }
 
     const onKeyUp = (event: KeyboardEvent) => {
-      if (applyKey(event.code, false)) event.preventDefault()
+      if (applyKey(event, false)) event.preventDefault()
     }
 
     const clearKeys = () => {
       keysRef.current = { forward: false, reverse: false }
     }
 
-    window.addEventListener('keydown', onKeyDown)
-    window.addEventListener('keyup', onKeyUp)
+    // Capture phase so reader controls / focused chrome can't swallow drive keys
+    window.addEventListener('keydown', onKeyDown, true)
+    window.addEventListener('keyup', onKeyUp, true)
     window.addEventListener('blur', clearKeys)
     return () => {
-      window.removeEventListener('keydown', onKeyDown)
-      window.removeEventListener('keyup', onKeyUp)
+      window.removeEventListener('keydown', onKeyDown, true)
+      window.removeEventListener('keyup', onKeyUp, true)
       window.removeEventListener('blur', clearKeys)
     }
-  }, [enabled])
+  }, [])
 
   useFrame((_, delta) => {
     if (jumpRequestRef && jumpRequestRef.current !== null) {
@@ -123,27 +152,26 @@ export function DriveMode({
       jumpRequestRef.current = null
     }
 
+    // Keep drive armed even if an effect race briefly deactivated it
+    controller.ensureActive()
+
     const keys = keysRef.current
     let moveX = 0
     if (keys.forward) moveX += 1
     if (keys.reverse) moveX -= 1
 
-    controller.setInput({ moveX, lineStep: 0 })
+    controller.setInput({ moveX })
     const state = controller.update(delta)
     if (driveRef.current) Object.assign(driveRef.current, state)
 
-    if (enabled && state.lineIndex !== lastReportedLine.current) {
+    if (state.lineIndex !== lastReportedLine.current) {
       lastReportedLine.current = state.lineIndex
       onLineIndexChangeRef.current?.(state.lineIndex)
     }
 
-    if (!enabled) return
-
-    // Ride in the open lane between this line and the next
     const laneY = state.y - layout.ribbonHeight / 2 - layout.gap / 2
 
     if (scrollRef.current) {
-      // Frame the car at ~3/4 down the viewport by looking slightly above it
       const halfFov = THREE.MathUtils.degToRad(CAMERA_RIG.fov * 0.5)
       const halfHeight = CAMERA_RIG.distance * Math.tan(halfFov)
       const ndcY = 1 - 2 * CAMERA_RIG.driveCarScreenY
@@ -167,8 +195,6 @@ export function DriveMode({
       startPortal.current.visible = true
     }
   })
-
-  if (!enabled) return null
 
   return (
     <group>

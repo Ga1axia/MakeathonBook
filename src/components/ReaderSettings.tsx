@@ -1,6 +1,4 @@
 import { BookAngleControls } from './BookAngleControls'
-import { ModeToggle } from './ModeToggle'
-import type { ReadingMode } from '../state/readerState'
 import type { BookAngles } from '../ribbon/bookLayout'
 
 type ReaderSettingsProps = {
@@ -8,8 +6,6 @@ type ReaderSettingsProps = {
   open: boolean
   onClose: () => void
   title: string
-  mode: ReadingMode
-  onModeChange: (mode: ReadingMode) => void
   onBack: () => void
   angles: BookAngles
   onAnglesChange: (angles: BookAngles) => void
@@ -17,7 +13,6 @@ type ReaderSettingsProps = {
   onCameraAngleChange: (angle: number) => void
   text: string
   onTextChange: (text: string) => void
-  driveMode: boolean
 }
 
 /**
@@ -28,8 +23,6 @@ export function ReaderSettings({
   open,
   onClose,
   title,
-  mode,
-  onModeChange,
   onBack,
   angles,
   onAnglesChange,
@@ -37,13 +30,13 @@ export function ReaderSettings({
   onCameraAngleChange,
   text,
   onTextChange,
-  driveMode,
 }: ReaderSettingsProps) {
   return (
     <aside
       id={id}
       className={`reader-settings${open ? ' is-open' : ''}`}
       aria-hidden={!open}
+      inert={!open ? true : undefined}
       aria-label="Reading menu"
     >
       <header className="reader-settings__header">
@@ -59,9 +52,8 @@ export function ReaderSettings({
         </div>
         <h1 className="reader-settings__title">{title}</h1>
         <p className="reader-settings__hint">
-          {driveMode
-            ? 'W/↑ or D/→ drive forward; S/↓ or A/← reverse. Reach a portal to change lines, or use the index.'
-            : 'Hover a line to lift it, or switch to Drive mode for the car + portal run.'}
+          W/↑ or D/→ drive forward; S/↓ or A/← reverse. Reach a portal to change
+          lines, or use the index.
         </p>
         <button
           type="button"
@@ -71,8 +63,6 @@ export function ReaderSettings({
           Library
         </button>
       </header>
-
-      <ModeToggle mode={mode} onChange={onModeChange} />
 
       <BookAngleControls
         value={angles}

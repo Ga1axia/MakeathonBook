@@ -1,36 +1,41 @@
 import { useEffect, useState } from 'react'
 import { ReaderCanvas } from '../components/ReaderCanvas'
 import { ReaderSettings } from '../components/ReaderSettings'
-import type { ReaderSession, ReadingMode } from '../state/readerState'
+import type { ReaderSession } from '../state/readerState'
 import type { BookAngles } from '../ribbon/bookLayout'
 
 type ReaderProps = {
   session: ReaderSession
   onBack: () => void
-  onModeChange: (mode: ReadingMode) => void
   onAnglesChange: (angles: BookAngles) => void
   onCameraAngleChange: (angle: number) => void
   onTextChange: (text: string) => void
 }
 
 /**
- * Full-screen reading experience — chrome lives in a click-to-open panel.
+ * Full-screen drive-to-read experience — chrome lives in a click-to-open panel.
  */
 export function Reader({
   session,
   onBack,
-  onModeChange,
   onAnglesChange,
   onCameraAngleChange,
   onTextChange,
 }: ReaderProps) {
   const [panelOpen, setPanelOpen] = useState(false)
-  const driveMode = session.mode === 'drive'
+
+  const closePanel = () => {
+    setPanelOpen(false)
+    // Drop focus from hidden menu controls so drive keys aren't swallowed
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
+  }
 
   useEffect(() => {
     if (!panelOpen) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setPanelOpen(false)
+      if (event.key === 'Escape') closePanel()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -42,7 +47,6 @@ export function Reader({
         text={session.book.text}
         angles={session.angles}
         cameraAngle={session.cameraAngle}
-        driveMode={driveMode}
       />
 
       {!panelOpen ? (
@@ -62,17 +66,15 @@ export function Reader({
           type="button"
           className="reader-menu-backdrop"
           aria-label="Close menu"
-          onClick={() => setPanelOpen(false)}
+          onClick={closePanel}
         />
       ) : null}
 
       <ReaderSettings
         id="reader-panel"
         open={panelOpen}
-        onClose={() => setPanelOpen(false)}
+        onClose={closePanel}
         title={session.book.title}
-        mode={session.mode}
-        onModeChange={onModeChange}
         onBack={onBack}
         angles={session.angles}
         onAnglesChange={onAnglesChange}
@@ -80,7 +82,6 @@ export function Reader({
         onCameraAngleChange={onCameraAngleChange}
         text={session.book.text}
         onTextChange={onTextChange}
-        driveMode={driveMode}
       />
     </div>
   )

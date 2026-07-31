@@ -9,7 +9,6 @@ import {
   type AppPage,
   type LibraryBook,
   type ReaderSession,
-  type ReadingMode,
 } from './state/readerState'
 import type { BookAngles } from './ribbon/bookLayout'
 import './App.css'
@@ -34,10 +33,6 @@ function App() {
       return
     }
     setPage(next)
-  }
-
-  const updateMode = (mode: ReadingMode) => {
-    setSession((prev) => (prev ? { ...prev, mode } : prev))
   }
 
   const updateAngles = (angles: BookAngles) => {
@@ -92,7 +87,6 @@ function App() {
           <Reader
             session={session}
             onBack={() => setPage('library')}
-            onModeChange={updateMode}
             onAnglesChange={updateAngles}
             onCameraAngleChange={updateCameraAngle}
             onTextChange={updateText}

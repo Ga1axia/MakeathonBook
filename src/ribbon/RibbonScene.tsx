@@ -1,6 +1,6 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { ContactShadows } from '@react-three/drei'
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { useMemo, useRef, useState, type RefObject } from 'react'
 import * as THREE from 'three'
 import { LineIndex } from '../components/LineIndex'
 import {
@@ -14,37 +14,25 @@ import {
 import { DriveMode } from './DriveMode'
 import type { DriveState } from './DriveController'
 import { buildLineLayout } from './lineLayout'
-import { MouseInteractionController } from './MouseInteractionController'
 import { RibbonMesh } from './RibbonMesh'
 
 export type RibbonSceneProps = {
   text: string
   angles: BookAngles
-  driveMode: boolean
   /** Degrees from face-on toward a top-down view */
   cameraAngle: number
 }
 
 /**
- * Vertical book page. Hover mode lifts lines under the cursor;
- * drive mode runs a low-poly car under each line through portals.
+ * Vertical book page with drive-to-read: a car runs under each line through portals.
  */
-export function RibbonScene({ text, angles, driveMode, cameraAngle }: RibbonSceneProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
+export function RibbonScene({ text, angles, cameraAngle }: RibbonSceneProps) {
   const jumpRequestRef = useRef<number | null>(null)
   const [activeLineIndex, setActiveLineIndex] = useState(0)
-  const controller = useMemo(() => new MouseInteractionController(), [])
   const layout = useMemo(() => buildLineLayout(text), [text])
 
-  useEffect(() => {
-    const element = containerRef.current
-    if (!element) return
-    controller.attach(element)
-    return () => controller.dispose()
-  }, [controller])
-
   return (
-    <div ref={containerRef} className="ribbon-scene">
+    <div className="ribbon-scene">
       <Canvas
         shadows
         camera={{
@@ -72,9 +60,7 @@ export function RibbonScene({ text, angles, driveMode, cameraAngle }: RibbonScen
         <BookStage
           text={text}
           angles={angles}
-          driveMode={driveMode}
           cameraAngle={cameraAngle}
-          controller={controller}
           jumpRequestRef={jumpRequestRef}
           onLineIndexChange={setActiveLineIndex}
         />
@@ -88,15 +74,13 @@ export function RibbonScene({ text, angles, driveMode, cameraAngle }: RibbonScen
         />
       </Canvas>
 
-      {driveMode ? (
-        <LineIndex
-          lines={layout.lines}
-          activeIndex={activeLineIndex}
-          onSelect={(lineIndex) => {
-            jumpRequestRef.current = lineIndex
-          }}
-        />
-      ) : null}
+      <LineIndex
+        lines={layout.lines}
+        activeIndex={activeLineIndex}
+        onSelect={(lineIndex) => {
+          jumpRequestRef.current = lineIndex
+        }}
+      />
     </div>
   )
 }
@@ -104,17 +88,13 @@ export function RibbonScene({ text, angles, driveMode, cameraAngle }: RibbonScen
 function BookStage({
   text,
   angles,
-  driveMode,
   cameraAngle,
-  controller,
   jumpRequestRef,
   onLineIndexChange,
 }: {
   text: string
   angles: BookAngles
-  driveMode: boolean
   cameraAngle: number
-  controller: MouseInteractionController
   jumpRequestRef: RefObject<number | null>
   onLineIndexChange: (lineIndex: number) => void
 }) {
@@ -142,7 +122,6 @@ function BookStage({
         bookRef={bookRef}
         scrollRef={scrollRef}
         cameraAngle={cameraAngle}
-        driveMode={driveMode}
       />
       <LeftPage
         bookRef={bookRef}
@@ -150,8 +129,6 @@ function BookStage({
         driveRef={driveRef}
         text={text}
         angles={angles}
-        driveMode={driveMode}
-        controller={controller}
         jumpRequestRef={jumpRequestRef}
         onLineIndexChange={onLineIndexChange}
       />
@@ -163,12 +140,10 @@ function ReadingCamera({
   bookRef,
   scrollRef,
   cameraAngle,
-  driveMode,
 }: {
   bookRef: RefObject<THREE.Group | null>
   scrollRef: RefObject<PageScrollState>
   cameraAngle: number
-  driveMode: boolean
 }) {
   const { camera } = useThree()
   const lookLocal = useMemo(() => new THREE.Vector3(), [])
@@ -187,17 +162,8 @@ function ReadingCamera({
 
     book.updateWorldMatrix(true, false)
 
-    const damping = driveMode ? CAMERA_RIG.scrollDamping * 1.35 : CAMERA_RIG.scrollDamping
-    const alpha = 1 - Math.exp(-damping * delta)
+    const alpha = 1 - Math.exp(-CAMERA_RIG.scrollDamping * 1.35 * delta)
     scroll.lookY = THREE.MathUtils.lerp(scroll.lookY, scroll.targetY, alpha)
-    // Drive mode must freely follow the car; hover keeps the soft page clamp
-    if (!driveMode) {
-      scroll.lookY = THREE.MathUtils.clamp(
-        scroll.lookY,
-        CAMERA_RIG.lookBottomY,
-        CAMERA_RIG.lookTopY,
-      )
-    }
 
     lookLocal.set(0, scroll.lookY, 0)
     lookWorld.copy(lookLocal).applyMatrix4(book.matrixWorld)
@@ -206,7 +172,6 @@ function ReadingCamera({
     pageUp.set(0, 1, 0).transformDirection(book.matrixWorld).normalize()
     pageRight.set(1, 0, 0).transformDirection(book.matrixWorld).normalize()
 
-    // 0° = face-on along the page normal; higher = orbit toward a top-down view
     const pitch = THREE.MathUtils.degToRad(angleRef.current)
     const dist = CAMERA_RIG.distance
     desiredPos
@@ -229,8 +194,6 @@ function LeftPage({
   driveRef,
   text,
   angles,
-  driveMode,
-  controller,
   jumpRequestRef,
   onLineIndexChange,
 }: {
@@ -239,8 +202,6 @@ function LeftPage({
   driveRef: RefObject<DriveState>
   text: string
   angles: BookAngles
-  driveMode: boolean
-  controller: MouseInteractionController
   jumpRequestRef: RefObject<number | null>
   onLineIndexChange: (lineIndex: number) => void
 }) {
@@ -248,18 +209,10 @@ function LeftPage({
 
   return (
     <group ref={bookRef} position={BOOK_POSITION} rotation={rotation}>
-      <RibbonMesh
-        text={text}
-        controller={controller}
-        bookRef={bookRef}
-        scrollRef={scrollRef}
-        driveMode={driveMode}
-        driveRef={driveRef}
-      />
+      <RibbonMesh text={text} driveRef={driveRef} />
 
       <DriveMode
         text={text}
-        enabled={driveMode}
         driveRef={driveRef}
         scrollRef={scrollRef}
         jumpRequestRef={jumpRequestRef}

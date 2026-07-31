@@ -1,19 +1,14 @@
-import { useFrame, useThree } from '@react-three/fiber'
+import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, type MutableRefObject, type RefObject } from 'react'
 import * as THREE from 'three'
-import { BOOK, type PageScrollState } from './bookLayout'
+import { BOOK } from './bookLayout'
 import { CanvasTextureRenderer } from './CanvasTextureRenderer'
 import type { DriveState } from './DriveController'
 import { buildLineLayout } from './lineLayout'
-import { MouseInteractionController } from './MouseInteractionController'
 
 export type RibbonMeshProps = {
   text: string
-  controller: MouseInteractionController
-  bookRef: RefObject<THREE.Group | null>
-  scrollRef: RefObject<PageScrollState>
-  driveMode?: boolean
-  driveRef?: RefObject<DriveState>
+  driveRef: RefObject<DriveState>
 }
 
 type CursorState = {
@@ -24,28 +19,12 @@ type CursorState = {
 }
 
 /**
- * Stack of horizontal text ribbons. Lift comes from the mouse, or from the
- * drive-mode car when that mode is enabled.
+ * Stack of horizontal text ribbons. Lift follows the drive-mode car.
  */
-export function RibbonMesh({
-  text,
-  controller,
-  bookRef,
-  scrollRef,
-  driveMode = false,
-  driveRef,
-}: RibbonMeshProps) {
+export function RibbonMesh({ text, driveRef }: RibbonMeshProps) {
   const layout = useMemo(() => buildLineLayout(text), [text])
   const { width, ribbonHeight, lineCenters, lines } = layout
-  const { maxLift, ellipseX, ellipseY, neighborLift } = BOOK
-
-  const hitPoint = useMemo(() => new THREE.Vector3(), [])
-  const localHit = useMemo(() => new THREE.Vector3(), [])
-  const pageNormal = useMemo(() => new THREE.Vector3(), [])
-  const pagePoint = useMemo(() => new THREE.Vector3(), [])
-  const plane = useMemo(() => new THREE.Plane(), [])
-  const raycaster = useMemo(() => new THREE.Raycaster(), [])
-  const { camera } = useThree()
+  const { maxLift, ellipseY } = BOOK
 
   const cursorRef = useRef<CursorState>({
     x: 0,
@@ -54,48 +33,17 @@ export function RibbonMesh({
     activeIndex: 0,
   })
 
-  useFrame((_, delta) => {
-    // delta reserved for controller easing
-    const state = controller.update(delta)
-    const book = bookRef.current
-    if (!book) return
-
-    if (driveMode && driveRef?.current?.active) {
-      const drive = driveRef.current
-      cursorRef.current.x = drive.x
-      cursorRef.current.y = drive.y
-      cursorRef.current.activeIndex = drive.lineIndex
-      cursorRef.current.lift = drive.lift
+  useFrame(() => {
+    const drive = driveRef.current
+    if (!drive?.active) {
+      cursorRef.current.lift = 0
       return
     }
 
-    pageNormal.set(0, 0, 1).transformDirection(book.matrixWorld)
-    pagePoint.set(0, 0, 0).applyMatrix4(book.matrixWorld)
-    plane.setFromNormalAndCoplanarPoint(pageNormal, pagePoint)
-
-    raycaster.setFromCamera(state.pointer, camera)
-    if (raycaster.ray.intersectPlane(plane, hitPoint)) {
-      localHit.copy(hitPoint)
-      book.worldToLocal(localHit)
-      cursorRef.current.x = localHit.x
-      cursorRef.current.y = localHit.y
-
-      let nearest = 0
-      let nearestDist = Infinity
-      for (let i = 0; i < lineCenters.length; i++) {
-        const d = Math.abs(localHit.y - lineCenters[i])
-        if (d < nearestDist) {
-          nearestDist = d
-          nearest = i
-        }
-      }
-      cursorRef.current.activeIndex = nearest
-
-      if (scrollRef.current && state.hovering && lineCenters.length > 0) {
-        scrollRef.current.targetY = lineCenters[nearest]
-      }
-    }
-    cursorRef.current.lift = state.lift
+    cursorRef.current.x = drive.x
+    cursorRef.current.y = drive.y
+    cursorRef.current.activeIndex = drive.lineIndex
+    cursorRef.current.lift = drive.lift
   })
 
   return (
@@ -108,10 +56,10 @@ export function RibbonMesh({
           y={lineCenters[index]}
           width={width}
           ribbonHeight={ribbonHeight}
-          maxLift={driveMode ? maxLift * 0.32 : maxLift}
-          ellipseX={driveMode ? 0.7 : ellipseX}
+          maxLift={maxLift * 0.32}
+          ellipseX={0.7}
           ellipseY={ellipseY}
-          neighborLift={driveMode ? 0.08 : neighborLift}
+          neighborLift={0.08}
           cursorRef={cursorRef}
         />
       ))}

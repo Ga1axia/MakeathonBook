@@ -6,8 +6,6 @@ import {
 
 export type AppPage = 'home' | 'library' | 'reader'
 
-export type ReadingMode = 'standard' | 'drive'
-
 export type LibraryBook = {
   id: string
   title: string
@@ -19,7 +17,6 @@ export type LibraryBook = {
 
 export type ReaderSession = {
   book: LibraryBook
-  mode: ReadingMode
   angles: BookAngles
   cameraAngle: number
   lineIndex: number
@@ -28,7 +25,6 @@ export type ReaderSession = {
 export function createReaderSession(book: LibraryBook): ReaderSession {
   return {
     book,
-    mode: 'standard',
     angles: { ...DEFAULT_BOOK_ANGLES },
     cameraAngle: DEFAULT_CAMERA_ANGLE,
     lineIndex: 0,

@@ -8,8 +8,8 @@ const FEATURES = [
     body: 'Browse built-in texts and continue whenever you return.',
   },
   {
-    title: 'Read in a spatial interface',
-    body: 'Text becomes a navigable 3D surface you can move through.',
+    title: 'Drive through the text',
+    body: 'Move line by line under the words, then through a portal to the next.',
   },
 ] as const
 
